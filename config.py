@@ -52,5 +52,6 @@ training_config = {
     'audio_path': r"dataset/test_set/audio.wav",
     'ground_truth_path': r"dataset/test_set/testset.csv",
     'checkpoint_path': r"out/checkpoints/checkpoint.pth", 
+    'in_memory' : False
 }
 

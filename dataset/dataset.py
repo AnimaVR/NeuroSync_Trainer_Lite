@@ -105,16 +105,12 @@ class AudioFacialDataset(Dataset):
 
 # WIP so please take care.
 
-# dataset.py
-
 import os
 import numpy as np
 import pickle
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence
-from dataset.data_processing import load_data, process_folder  
-
 
 # =============================================================================
 # PREPROCESSING: Save Entire Data to .npy (Binary) Files & Build an Index
@@ -126,7 +122,7 @@ from dataset.data_processing import load_data, process_folder
 # an index entry for each segment.
 # =============================================================================
 
-
+from dataset.data_processing import load_data, process_folder  
 
 def preprocess_and_cache_to_bin(config, force_reprocess=False):
     """
@@ -139,61 +135,42 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
     root_dir = config['root_dir']
     sr = config['sr']
     micro_batch_size = config['micro_batch_size']
-    
-    # Directory for binary (npy) files
+
     bin_dir = os.path.join(root_dir, "processed_bin")
     if not os.path.exists(bin_dir):
         os.makedirs(bin_dir)
     
-    # Set to keep track of processed folders (this mimics your original code)
     processed_folders = set()
-    # Global index: each entry is a tuple:
-    # (audio_npy_file, facial_npy_file, start_index, reflection_flag)
     dataset_index = []
-    
-    # Use your load_data to process (or load cached) full arrays per folder.
+
     raw_examples = load_data(root_dir, sr, processed_folders)
     
-    # Loop over each folder’s full data
     for (audio_features, facial_data) in raw_examples:
-        # Determine a unique folder name from the cache filename (assume caching preserved name)
-        # (Here we simply use the folder name stored in the file name of one of the npz files.
-        #  Adjust if needed.)
-        folder_name = "folder_" + str(len(dataset_index))  # fallback if no proper name available
+
+        folder_name = "folder_" + str(len(dataset_index))  
         
-        # (If you want to extract the folder name from the cache file path, you could modify load_data.)
-        # For demonstration, we assume each raw_example corresponds to one folder.
         audio_bin_file = os.path.join(bin_dir, f"{folder_name}_audio.npy")
         facial_bin_file = os.path.join(bin_dir, f"{folder_name}_facial.npy")
-        
-        # Save the entire arrays as .npy binary files if not already present or if forced.
+
         if force_reprocess or (not os.path.exists(audio_bin_file) or not os.path.exists(facial_bin_file)):
             np.save(audio_bin_file, audio_features)
             np.save(facial_bin_file, facial_data)
             print(f"Saved binary files for folder '{folder_name}'")
         
-        # Both arrays should have the same number of frames.
         T = audio_features.shape[0]
         if T < micro_batch_size:
-            # Skip if not enough frames for a mini-batch.
             continue
         
-        # Compute the number of regular segments (using a sliding window of stride 1)
         num_regular_segments = T - micro_batch_size + 1
         
-        # If T is not a multiple of micro_batch_size, we add one extra segment using reflection.
         add_reflection = (T % micro_batch_size != 0)
-        
-        # Record an index entry for each regular segment.
+  
         for start in range(0, num_regular_segments):
             dataset_index.append((audio_bin_file, facial_bin_file, start, False))
         
-        # Record the extra (reflection) segment if needed.
         if add_reflection:
-            # For the reflection segment we use start = T - micro_batch_size.
             dataset_index.append((audio_bin_file, facial_bin_file, T - micro_batch_size, True))
-    
-    # Optionally, save the global index to disk for faster reloading later.
+
     index_file = os.path.join(bin_dir, "dataset_index.pkl")
     with open(index_file, "wb") as f:
         pickle.dump(dataset_index, f)
@@ -221,11 +198,9 @@ class AudioFacialDataset(Dataset):
         self.root_dir = config['root_dir']
         self.micro_batch_size = config['micro_batch_size']
         
-        # Location for the binary files and index.
         self.bin_dir = os.path.join(self.root_dir, "processed_bin")
         self.index_file = os.path.join(self.bin_dir, "dataset_index.pkl")
-        
-        # Load or build the index.
+
         if preload_index and os.path.exists(self.index_file) and not force_reprocess:
             with open(self.index_file, "rb") as f:
                 self.dataset_index = pickle.load(f)
@@ -238,45 +213,35 @@ class AudioFacialDataset(Dataset):
         return len(self.dataset_index)
     
     def __getitem__(self, idx):
-        # Get the info for the requested segment.
         audio_file, facial_file, start, reflection_flag = self.dataset_index[idx]
         micro_batch_size = self.micro_batch_size
-        
-        # Load the audio and facial arrays via memory mapping.
+
         audio_data = np.load(audio_file, mmap_mode='r')
         facial_data = np.load(facial_file, mmap_mode='r')
-        T = audio_data.shape[0]  # total number of frames
+        T = audio_data.shape[0] 
         
         if not reflection_flag:
-            # Regular segment: simply slice out the window.
             audio_segment = audio_data[start : start + micro_batch_size]
             facial_segment = facial_data[start : start + micro_batch_size]
         else:
-            # Reflection segment: for the last window, if there are not enough frames,
-            # we fill the remainder by reflecting (mirroring) the available frames.
             segment_audio = audio_data[start : T]
             segment_facial = facial_data[start : T]
-            # Initialize arrays with zeros.
             audio_segment = np.zeros((micro_batch_size, audio_data.shape[1]), dtype=audio_data.dtype)
             facial_segment = np.zeros((micro_batch_size, facial_data.shape[1]), dtype=facial_data.dtype)
             len_seg = segment_audio.shape[0]
-            # Copy available frames.
             audio_segment[:len_seg] = segment_audio
             facial_segment[:len_seg] = segment_facial
             missing = micro_batch_size - len_seg
-            # Reflect available frames to fill in.
             ref_audio = np.flip(segment_audio, axis=0)
             ref_facial = np.flip(segment_facial, axis=0)
             audio_segment[len_seg:] = ref_audio[:missing]
             facial_segment[len_seg:] = ref_facial[:missing]
         
-        # Convert to torch tensors.
         return (torch.tensor(audio_segment, dtype=torch.float32),
                 torch.tensor(facial_segment, dtype=torch.float32))
     
     @staticmethod
     def collate_fn(batch):
-        # Collate function that pads sequences in the batch.
         src_batch, trg_batch = zip(*batch)
         src_batch = pad_sequence(src_batch, batch_first=True, padding_value=0)
         trg_batch = pad_sequence(trg_batch, batch_first=True, padding_value=0)
@@ -325,5 +290,6 @@ def prepare_dataloader(config):
         prefetch_factor=2
     )
     return dataset, dataloader
+
 
 '''

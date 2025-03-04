@@ -1,6 +1,6 @@
 # NeuroSync Trainer Lite
 
-## Using the NeuroSync Model
+## Using the NeuroSync Model AFTER you have trained it using the Trainer
 To **generate facial blendshapes from audio** and send them to Unreal Engine, you'll need:
 - [**NeuroSync Local API**](https://github.com/AnimaVR/NeuroSync_Local_API) – Handles real-time facial data processing.
 - [**NeuroSync Player**](https://github.com/AnimaVR/NeuroSync_Player) – Sends the animation data to Unreal Engine or any **LiveLink-compatible** software.

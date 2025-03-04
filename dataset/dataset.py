@@ -112,27 +112,33 @@ import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence
 
-# =============================================================================
-# PREPROCESSING: Save Entire Data to .npy (Binary) Files & Build an Index
-#
-# For each folder in root_dir, we use your existing processing (or cached .npz)
-# to load the full audio and facial arrays. Then, we store each array as a .npy
-# file in a new folder ("processed_bin"). We compute how many sliding window 
-# segments of micro_batch_size (e.g. 128 frames) are available and record an 
-# index entry for each segment.
-#
-# Changes: Removed reflection logic – we drop any incomplete window.
-# =============================================================================
-
+# ---------------------------------------------------------------------------
+# Import your existing processing functions.
+# These functions should be defined in dataset/data_processing.py.
+# For example: load_data and process_folder.
+# ---------------------------------------------------------------------------
 from dataset.data_processing import load_data, process_folder  
 
+
+# =============================================================================
+# PREPROCESSING FOR LAZY MODE: Save Entire Data to .npy Files & Build an Index
+#
+# For each folder in root_dir, we load the full audio and facial arrays (via load_data)
+# and save them as .npy files in "processed_bin". Then, we compute the number
+# of sliding window segments (of micro_batch_size frames) and record an index
+# entry for each complete window. (Incomplete windows are dropped.)
+# =============================================================================
 def preprocess_and_cache_to_bin(config, force_reprocess=False):
     """
-    Preprocess each folder’s entire data arrays and save them as .npy files.
-    Then build a global index mapping each micro-batch (of micro_batch_size frames)
-    to its source files and starting index.
+    Process each folder’s full data arrays, save them as .npy files, and build a global
+    index mapping each micro-batch (of micro_batch_size frames) to its source file and start index.
     
-    If force_reprocess is True, we re-save even if the .npy files already exist.
+    Parameters:
+      config         - dict with keys: 'root_dir', 'sr', 'micro_batch_size', etc.
+      force_reprocess- if True, re-save even if .npy files exist.
+    
+    Returns:
+      dataset_index  - a list of tuples (audio_bin_file, facial_bin_file, start_index)
     """
     root_dir = config['root_dir']
     sr = config['sr']
@@ -148,8 +154,8 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
     raw_examples = load_data(root_dir, sr, processed_folders)
     
     for (audio_features, facial_data) in raw_examples:
-        # Use a unique folder name based on the current dataset_index length
-        folder_name = "folder_" + str(len(dataset_index))  
+        # Create a unique name for this folder's binary files.
+        folder_name = "folder_" + str(len(dataset_index))
         
         audio_bin_file = os.path.join(bin_dir, f"{folder_name}_audio.npy")
         facial_bin_file = os.path.join(bin_dir, f"{folder_name}_facial.npy")
@@ -160,13 +166,12 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
             print(f"Saved binary files for folder '{folder_name}'")
         
         T = audio_features.shape[0]
-        # Only consider windows that completely fit; drop excess frames.
+        # Only record windows that completely fit (drop excess frames).
         if T < micro_batch_size:
             continue
         
-        num_segments = T - micro_batch_size + 1  # All full windows (sliding window with stride 1)
+        num_segments = T - micro_batch_size + 1  # sliding window with stride 1
         for start in range(0, num_segments):
-            # Note: no reflection flag is needed since we drop incomplete segments.
             dataset_index.append((audio_bin_file, facial_bin_file, start))
 
     index_file = os.path.join(bin_dir, "dataset_index.pkl")
@@ -176,22 +181,100 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
     
     return dataset_index
 
-# =============================================================================
-# DATASET CLASS: Lazy-Loading Mini-Batches from Binary Files on Demand
-#
-# This dataset class loads only the index in memory and then uses it to open the
-# corresponding .npy files (with memory mapping) and slice out a micro-batch.
-# It replicates your original sliding window logic.
-#
-# Changes: Removed reflection code in __getitem__.
-# =============================================================================
 
-class AudioFacialDataset(Dataset):
+# =============================================================================
+# DATASET CLASS (IN-MEMORY VERSION)
+#
+# This version loads all processed examples into memory.
+# It uses your original sliding window logic and includes reflection padding.
+# =============================================================================
+class InMemoryAudioFacialDataset(Dataset):
+    def __init__(self, config):
+        self.root_dir = config['root_dir']
+        self.sr = config['sr']
+        self.frame_rate = config['frame_rate']
+        self.micro_batch_size = config['micro_batch_size']
+        self.examples = []
+        self.processed_folders = set()
+
+        raw_examples = load_data(self.root_dir, self.sr, self.processed_folders)
+        
+        for audio_features, facial_data in raw_examples:
+            processed_examples = self.process_example(audio_features, facial_data)
+            if processed_examples is not None:
+                self.examples.extend(processed_examples)
+    
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx):
+        return self.examples[idx]
+
+    @staticmethod
+    def collate_fn(batch):
+        src_batch, trg_batch = zip(*batch)
+        src_batch = pad_sequence(src_batch, batch_first=True, padding_value=0)
+        trg_batch = pad_sequence(trg_batch, batch_first=True, padding_value=0)
+        return src_batch, trg_batch
+
+    def process_example(self, audio_features, facial_data):
+        num_frames_facial = len(facial_data)
+        num_frames_audio = len(audio_features)
+        max_frames = max(num_frames_audio, num_frames_facial)
+
+        examples = []
+        # Process full windows
+        for start in range(0, max_frames - self.micro_batch_size + 1):
+            end = start + self.micro_batch_size
+            
+            audio_segment = np.zeros((self.micro_batch_size, audio_features.shape[1]))
+            facial_segment = np.zeros((self.micro_batch_size, facial_data.shape[1]))
+            
+            audio_segment[:min(self.micro_batch_size, num_frames_audio - start)] = audio_features[start:end]
+            facial_segment[:min(self.micro_batch_size, num_frames_facial - start)] = facial_data[start:end]
+
+            examples.append((torch.tensor(audio_segment, dtype=torch.float32),
+                             torch.tensor(facial_segment, dtype=torch.float32)))
+
+        # Handle incomplete (reflection) window if needed.
+        if max_frames % self.micro_batch_size != 0:
+            start = max_frames - self.micro_batch_size
+            end = max_frames
+
+            audio_segment = np.zeros((self.micro_batch_size, audio_features.shape[1]))
+            facial_segment = np.zeros((self.micro_batch_size, facial_data.shape[1]))
+            
+            segment_audio = audio_features[start:end]
+            segment_facial = facial_data[start:end]
+
+            reflection_audio = np.flip(segment_audio, axis=0)
+            reflection_facial = np.flip(segment_facial, axis=0)
+
+            audio_segment[:len(segment_audio)] = segment_audio
+            audio_segment[len(segment_audio):] = reflection_audio[:self.micro_batch_size - len(segment_audio)]
+
+            facial_segment[:len(segment_facial)] = segment_facial
+            facial_segment[len(segment_facial):] = reflection_facial[:self.micro_batch_size - len(segment_facial)]
+
+            examples.append((torch.tensor(audio_segment, dtype=torch.float32),
+                             torch.tensor(facial_segment, dtype=torch.float32)))
+        
+        return examples
+
+
+# =============================================================================
+# DATASET CLASS (LAZY / DISK-BASED VERSION)
+#
+# This version loads only the index into memory. At each __getitem__ call,
+# it memory-maps the corresponding .npy files and slices out a micro-batch.
+# Incomplete windows are dropped (no reflection padding).
+# =============================================================================
+class LazyAudioFacialDataset(Dataset):
     def __init__(self, config, preload_index=True, force_reprocess=False):
         """
         Parameters:
-          config         - dictionary with keys: 'root_dir', 'sr', 'micro_batch_size', etc.
-          preload_index  - if True, load the index from disk (if available) instead of recomputing.
+          config         - dict with keys: 'root_dir', 'sr', 'micro_batch_size', etc.
+          preload_index  - if True, load the index from disk if available.
           force_reprocess- if True, ignore existing .npy files/index and reprocess.
         """
         self.config = config
@@ -213,14 +296,14 @@ class AudioFacialDataset(Dataset):
         return len(self.dataset_index)
     
     def __getitem__(self, idx):
-        # Unpack the index tuple; no reflection_flag needed.
+        # Unpack the index tuple.
         audio_file, facial_file, start = self.dataset_index[idx]
         micro_batch_size = self.micro_batch_size
 
-        # Load the full arrays via memory mapping.
+        # Memory-map the full arrays.
         audio_data = np.load(audio_file, mmap_mode='r')
         facial_data = np.load(facial_file, mmap_mode='r')
-        # Since we only recorded full windows, we can safely slice.
+        # Slice out a full window.
         audio_segment = audio_data[start : start + micro_batch_size]
         facial_segment = facial_data[start : start + micro_batch_size]
         
@@ -234,16 +317,29 @@ class AudioFacialDataset(Dataset):
         trg_batch = pad_sequence(trg_batch, batch_first=True, padding_value=0)
         return src_batch, trg_batch
 
+
+# =============================================================================
+# HELPER: Get the Dataset Class Based on Configuration
+#
+# If config['in_memory'] is True, use the in-memory version;
+# otherwise, use the lazy (disk-based) version.
+# =============================================================================
+def get_dataset_class(config):
+    if config.get("in_memory", True):
+        return InMemoryAudioFacialDataset
+    else:
+        return LazyAudioFacialDataset
+
+
 # =============================================================================
 # DATALOADER PREPARATION FUNCTIONS
 #
-# These functions create a DataLoader (or train/validation split) using our lazy
-# dataset. Multiple workers (and prefetching) ensure the next batch is read from
-# disk while the current one is processed.
+# These functions create DataLoaders (with optional train/validation split)
+# based on the chosen dataset class.
 # =============================================================================
-
-def prepare_dataloader_with_split(config, val_split=0.01):
-    dataset = AudioFacialDataset(config)
+def prepare_dataloader_with_split(config, val_split=0.1):
+    DatasetClass = get_dataset_class(config)
+    dataset = DatasetClass(config)
     val_size = int(len(dataset) * val_split)
     train_size = len(dataset) - val_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
@@ -252,7 +348,7 @@ def prepare_dataloader_with_split(config, val_split=0.01):
         train_dataset,
         batch_size=config['batch_size'],
         shuffle=True,
-        collate_fn=AudioFacialDataset.collate_fn,
+        collate_fn=DatasetClass.collate_fn,
         num_workers=4,         # adjust as needed
         prefetch_factor=2
     )
@@ -260,19 +356,20 @@ def prepare_dataloader_with_split(config, val_split=0.01):
         val_dataset,
         batch_size=config['batch_size'],
         shuffle=False,
-        collate_fn=AudioFacialDataset.collate_fn,
+        collate_fn=DatasetClass.collate_fn,
         num_workers=4,
         prefetch_factor=2
     )
     return train_dataset, val_dataset, train_dataloader, val_dataloader
 
 def prepare_dataloader(config):
-    dataset = AudioFacialDataset(config)
+    DatasetClass = get_dataset_class(config)
+    dataset = DatasetClass(config)
     dataloader = DataLoader(
         dataset,
         batch_size=config['batch_size'],
         shuffle=True,
-        collate_fn=AudioFacialDataset.collate_fn,
+        collate_fn=DatasetClass.collate_fn,
         num_workers=4,
         prefetch_factor=2
     )

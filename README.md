@@ -1,6 +1,6 @@
 # NeuroSync Trainer Lite
 
-### **04/03/2025 Caching Dataloader for low system memory systems**
+### **04/03/2025 Caching Dataloader for low memory capacity systems**
 
 If you dont have very much system memory, training large dataset was impossible - a cache dataloader sample has been added (commented out on dataset.py) so you can have an dataset as large as your hard drive and it still work.
 

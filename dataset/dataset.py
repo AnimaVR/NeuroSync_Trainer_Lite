@@ -117,9 +117,11 @@ from torch.nn.utils.rnn import pad_sequence
 #
 # For each folder in root_dir, we use your existing processing (or cached .npz)
 # to load the full audio and facial arrays. Then, we store each array as a .npy
-# file in a new folder ("processed_bin"). We also compute how many sliding
-# window segments of micro_batch_size (e.g. 128 frames) are available and record
-# an index entry for each segment.
+# file in a new folder ("processed_bin"). We compute how many sliding window 
+# segments of micro_batch_size (e.g. 128 frames) are available and record an 
+# index entry for each segment.
+#
+# Changes: Removed reflection logic – we drop any incomplete window.
 # =============================================================================
 
 from dataset.data_processing import load_data, process_folder  
@@ -146,7 +148,7 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
     raw_examples = load_data(root_dir, sr, processed_folders)
     
     for (audio_features, facial_data) in raw_examples:
-
+        # Use a unique folder name based on the current dataset_index length
         folder_name = "folder_" + str(len(dataset_index))  
         
         audio_bin_file = os.path.join(bin_dir, f"{folder_name}_audio.npy")
@@ -158,18 +160,14 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
             print(f"Saved binary files for folder '{folder_name}'")
         
         T = audio_features.shape[0]
+        # Only consider windows that completely fit; drop excess frames.
         if T < micro_batch_size:
             continue
         
-        num_regular_segments = T - micro_batch_size + 1
-        
-        add_reflection = (T % micro_batch_size != 0)
-  
-        for start in range(0, num_regular_segments):
-            dataset_index.append((audio_bin_file, facial_bin_file, start, False))
-        
-        if add_reflection:
-            dataset_index.append((audio_bin_file, facial_bin_file, T - micro_batch_size, True))
+        num_segments = T - micro_batch_size + 1  # All full windows (sliding window with stride 1)
+        for start in range(0, num_segments):
+            # Note: no reflection flag is needed since we drop incomplete segments.
+            dataset_index.append((audio_bin_file, facial_bin_file, start))
 
     index_file = os.path.join(bin_dir, "dataset_index.pkl")
     with open(index_file, "wb") as f:
@@ -183,7 +181,9 @@ def preprocess_and_cache_to_bin(config, force_reprocess=False):
 #
 # This dataset class loads only the index in memory and then uses it to open the
 # corresponding .npy files (with memory mapping) and slice out a micro-batch.
-# It replicates your original sliding window (plus reflection) logic.
+# It replicates your original sliding window logic.
+#
+# Changes: Removed reflection code in __getitem__.
 # =============================================================================
 
 class AudioFacialDataset(Dataset):
@@ -213,29 +213,16 @@ class AudioFacialDataset(Dataset):
         return len(self.dataset_index)
     
     def __getitem__(self, idx):
-        audio_file, facial_file, start, reflection_flag = self.dataset_index[idx]
+        # Unpack the index tuple; no reflection_flag needed.
+        audio_file, facial_file, start = self.dataset_index[idx]
         micro_batch_size = self.micro_batch_size
 
+        # Load the full arrays via memory mapping.
         audio_data = np.load(audio_file, mmap_mode='r')
         facial_data = np.load(facial_file, mmap_mode='r')
-        T = audio_data.shape[0] 
-        
-        if not reflection_flag:
-            audio_segment = audio_data[start : start + micro_batch_size]
-            facial_segment = facial_data[start : start + micro_batch_size]
-        else:
-            segment_audio = audio_data[start : T]
-            segment_facial = facial_data[start : T]
-            audio_segment = np.zeros((micro_batch_size, audio_data.shape[1]), dtype=audio_data.dtype)
-            facial_segment = np.zeros((micro_batch_size, facial_data.shape[1]), dtype=facial_data.dtype)
-            len_seg = segment_audio.shape[0]
-            audio_segment[:len_seg] = segment_audio
-            facial_segment[:len_seg] = segment_facial
-            missing = micro_batch_size - len_seg
-            ref_audio = np.flip(segment_audio, axis=0)
-            ref_facial = np.flip(segment_facial, axis=0)
-            audio_segment[len_seg:] = ref_audio[:missing]
-            facial_segment[len_seg:] = ref_facial[:missing]
+        # Since we only recorded full windows, we can safely slice.
+        audio_segment = audio_data[start : start + micro_batch_size]
+        facial_segment = facial_data[start : start + micro_batch_size]
         
         return (torch.tensor(audio_segment, dtype=torch.float32),
                 torch.tensor(facial_segment, dtype=torch.float32))
@@ -290,6 +277,5 @@ def prepare_dataloader(config):
         prefetch_factor=2
     )
     return dataset, dataloader
-
 
 '''

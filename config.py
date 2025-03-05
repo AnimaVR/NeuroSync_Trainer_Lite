@@ -56,6 +56,6 @@ training_config = {
     'audio_path': r"dataset/test_set/audio.wav",
     'ground_truth_path': r"dataset/test_set/testset.csv",
     'checkpoint_path': r"out/checkpoints/checkpoint.pth", 
-    'in_memory' : False
+    'in_memory' : False # if true, use in memory data storage - requires a lot of system memory if your dataset is large and is no quicker than if using lazy loading - just dont ;)
 }
 

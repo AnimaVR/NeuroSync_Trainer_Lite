@@ -35,13 +35,13 @@ def _backward_and_step_single_gpu(loss, model, optimizer, clip, use_amp, grad_sc
     if use_amp:
         grad_scaler.scale(loss).backward()
         grad_scaler.unscale_(optimizer)
-        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
+        total_norm = calculate_gradient_norm(model)  
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         grad_scaler.step(optimizer)
         grad_scaler.update()
     else:
         loss.backward()
-        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
+        total_norm = calculate_gradient_norm(model)  
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
     return total_norm
@@ -115,7 +115,7 @@ def _backward_and_step_multi_gpu(losses, models, optimizer, devices, clip, use_a
             avg_grad = sum(grad_list) / n
             param_tuple[0].grad.data.copy_(avg_grad.view_as(param_tuple[0]))
 
-    pre_clip_norm = calculate_gradient_norm(models[0])  # <-- Assumes calculate_gradient_norm is defined elsewhere
+    pre_clip_norm = calculate_gradient_norm(models[0])  
     torch.nn.utils.clip_grad_norm_(models[0].parameters(), clip)
 
     if use_amp:

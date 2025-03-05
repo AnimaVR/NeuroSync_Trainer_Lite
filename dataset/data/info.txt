@@ -1,1 +1,5 @@
 Put all your (extracted) iPhone data folders in here (ARKit, not Metahuman animator).
+
+its important that the _cal.csv is available - calibrate your face in the livelink app so that resting is 0's
+
+the trainer can only use the _cal.csv as face data, so make sure thats the one that is in there before starting train.py

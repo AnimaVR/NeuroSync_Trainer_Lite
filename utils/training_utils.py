@@ -295,9 +295,6 @@ def train_one_epoch_multi_gpu(
             val_losses.append(val_loss.item())
             models[0].train()
 
-        if pbar is not None:
-            pbar.update(1)
-
     end_time = time.time()
     print_epoch_summary(epoch, total_epochs, epoch_loss, steps_per_epoch, end_time - start_time)
     save_gradient_norm_plot(epoch, gradient_norms, save_dir="dataset/validation_plots/gradient_norms")

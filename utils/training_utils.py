@@ -152,7 +152,7 @@ def train_one_epoch_multi_gpu(
         epoch_loss += batch_loss
         train_steps.append(batch_step)
         train_losses.append(batch_loss)
-        gradient_norms.append(calculate_gradient_norm(models[0]))  # <-- Assumes calculate_gradient_norm is defined
+        gradient_norms.append(calculate_gradient_norm(models[0])) 
         batch_step += 1
 
         if val_dataloader is not None and (step_idx % validation_interval == 0):

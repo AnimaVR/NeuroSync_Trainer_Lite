@@ -45,6 +45,8 @@ if __name__ == "__main__":
         start_epoch, batch_step, model_0, optimizer, scheduler = load_checkpoint(
             config['checkpoint_path'], model_0, optimizer, scheduler, devices[0]
         )
+        
+        start_epoch += 1  # Resume from the next epoch since the checkpoint stores the last completed epoch.
         # Sync other models with model_0's weights
         if model_1 is not None:
             model_1.load_state_dict(model_0.state_dict())

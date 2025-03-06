@@ -3,51 +3,22 @@
 # Businesses or organizations with **annual revenue of $1,000,000 or more** must obtain permission to use this software commercially.
 
 import os
-import multiprocessing
-from tqdm import tqdm
 import torch
-from torch.cuda.amp import GradScaler  
+
 from config import training_config as config
-from utils.training_utils import train_one_epoch, train_one_epoch_multi_gpu
-from utils.model_utils import save_final_model, build_model, prepare_training_components
-from utils.checkpoint_utils import load_checkpoint, save_checkpoint_and_data
-from dataset.dataset import prepare_dataloader, prepare_dataloader_with_split
-from utils.training_helpers import count_parameters, init_weights
 
-def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):
-    """General-purpose training loop that decides whether to use single- or multi-GPU training."""
-    n_epochs = config['n_epochs']
-    total_batches = n_epochs * len(dataloader)
-    lock = multiprocessing.Lock()
-    count_parameters(model_0)
-    device0, use_amp, scaler = devices[0], config.get('use_amp', True), GradScaler() if config.get('use_amp', True) else None
+from utils.training_utils import train_model
 
-    with tqdm(total=total_batches, desc="Training", dynamic_ncols=True) as pbar:
-        for epoch in range(start_epoch, n_epochs):
-            if use_multi_gpu:
-                # Gather models and corresponding devices that are not None:
-                models_list = [m for m in (model_0, model_1, model_2, model_3) if m is not None]
-                used_devices = [d for m, d in zip((model_0, model_1, model_2, model_3), devices) if m is not None]
-                batch_step = train_one_epoch_multi_gpu(
-                    epoch, models_list, dataloader, criterion, optimizer, used_devices, clip=2.0,
-                    batch_step=batch_step, pbar=pbar, total_epochs=n_epochs, use_amp=use_amp,
-                    grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20
-                )
-            else:
-                batch_step = train_one_epoch(
-                    epoch, model=model_0, dataloader=dataloader, criterion=criterion, optimizer=optimizer,
-                    device=device0, clip=2.0, batch_step=batch_step, pbar=pbar, total_epochs=n_epochs,
-                    use_amp=use_amp, grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20
-                )
-            scheduler.step()
-            save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
-    save_final_model(model_0)
-    return batch_step
+from utils.model_utils import build_model, prepare_training_components
+
+from utils.checkpoint_utils import load_checkpoint
+from dataset.dataset import prepare_dataloader_with_split
+from utils.training_helpers import init_weights
 
 
 if __name__ == "__main__":
     # If you'd like to manually specify which GPUs are visible:
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     torch.cuda.empty_cache()
 
@@ -122,5 +93,6 @@ if __name__ == "__main__":
         start_epoch=start_epoch,
         batch_step=batch_step
     )
+
 
 

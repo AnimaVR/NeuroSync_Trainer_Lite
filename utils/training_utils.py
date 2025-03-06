@@ -21,8 +21,6 @@ from utils.training_helpers import (
     _backward_and_step_multi_gpu,
     _sync_models,
     _run_validation_multi_gpu,
-    save_loss_plot,
-    save_gradient_norm_plot,
     print_epoch_summary,
     print_training_progress,
     calculate_gradient_norm,
@@ -32,7 +30,7 @@ from utils.training_helpers import (
 from utils.checkpoint_utils import save_checkpoint_and_data
 from utils.model_utils import save_final_model
 
-
+from utils.validation import save_gradient_norm_plot, save_loss_plot
 
 def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):
     """General-purpose training loop that decides whether to use single- or multi-GPU training."""

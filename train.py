@@ -6,7 +6,7 @@ import os
 import multiprocessing
 from tqdm import tqdm
 import torch
-from torch.cuda.amp import GradScaler  
+from torch.cuda.amp import GradScaler, autocast
 from config import training_config as config
 from utils.training_utils import (
     train_one_epoch,

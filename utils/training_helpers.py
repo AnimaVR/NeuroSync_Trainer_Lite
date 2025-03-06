@@ -3,6 +3,8 @@
 # For individuals and businesses earning **under $1M per year**, this software is licensed under the **MIT License**
 # Businesses or organizations with **annual revenue of $1,000,000 or more** must obtain permission to use this software commercially.
 # training_helpers.py
+
+
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
@@ -38,13 +40,13 @@ def _backward_and_step_single_gpu(loss, model, optimizer, clip, use_amp, grad_sc
     if use_amp:
         grad_scaler.scale(loss).backward()
         grad_scaler.unscale_(optimizer)
-        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
+        total_norm = calculate_gradient_norm(model)  
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         grad_scaler.step(optimizer)
         grad_scaler.update()
     else:
         loss.backward()
-        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
+        total_norm = calculate_gradient_norm(model)  
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
     return total_norm
@@ -143,7 +145,7 @@ def _backward_and_step_multi_gpu(losses, models, optimizer, devices, clip, use_a
             param_tuple[0].grad.data.copy_(avg_grad)
     
     # --- Gradient Clipping and Optimizer Step ---
-    pre_clip_norm = calculate_gradient_norm(models[0])  # <-- Assumes calculate_gradient_norm is defined
+    pre_clip_norm = calculate_gradient_norm(models[0])  
     torch.nn.utils.clip_grad_norm_(models[0].parameters(), clip)
     
     if use_amp:

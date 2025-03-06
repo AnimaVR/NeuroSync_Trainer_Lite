@@ -17,38 +17,26 @@ from utils.training_helpers import init_weights
 
 
 if __name__ == "__main__":
-    # If you'd like to manually specify which GPUs are visible:
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     torch.cuda.empty_cache()
-
-    # --- Use the split dataloader ---
     train_dataset, val_dataset, train_dataloader, val_dataloader = prepare_dataloader_with_split(config, val_split=0.01)
-
-    # We read the desired number of GPUs and check how many we *actually* have
     desired_gpus = config.get('num_gpus', 1)
     device_count = torch.cuda.device_count()
 
-    # We also check if multi-gpu is turned on
     use_multi_gpu = config.get('use_multi_gpu', False) and (device_count > 1)
 
-    # Create device list: up to 4 devices max, or fewer if device_count < 4
     devices = []
     for i in range(min(device_count, 4)):
         devices.append(torch.device(f'cuda:{i}'))
-    # Pad with None if fewer than 4
     while len(devices) < 4:
         devices.append(None)
 
-    # Build the base model on device0
     model_0 = build_model(config, devices[0] if devices[0] else torch.device('cpu'))
-
-    # Conditionally build the other models if multi-GPU is requested
     model_1 = build_model(config, devices[1]) if (use_multi_gpu and desired_gpus >= 2 and devices[1]) else None
     model_2 = build_model(config, devices[2]) if (use_multi_gpu and desired_gpus >= 3 and devices[2]) else None
     model_3 = build_model(config, devices[3]) if (use_multi_gpu and desired_gpus >= 4 and devices[3]) else None
 
-    # Prepare loss, optimizer, scheduler
     criterion, optimizer, scheduler = prepare_training_components(config, model_0)
 
     # Check for existing checkpoint (resume mode)
@@ -75,24 +63,8 @@ if __name__ == "__main__":
             model_2.load_state_dict(model_0.state_dict())
         if model_3 is not None:
             model_3.load_state_dict(model_0.state_dict())
-
-    # Run training: pass both train_dataloader and val_dataloader
-    train_model(
-        config,
-        model_0,
-        model_1,
-        model_2,
-        model_3,
-        train_dataloader,     # <-- Training DataLoader
-        val_dataloader,       # <-- Validation DataLoader
-        criterion,
-        optimizer,
-        scheduler,
-        devices=devices,
-        use_multi_gpu=use_multi_gpu,
-        start_epoch=start_epoch,
-        batch_step=batch_step
-    )
+            
+    train_model(config, model_0, model_1, model_2, model_3, train_dataloader, val_dataloader, criterion, optimizer, scheduler, devices=devices, use_multi_gpu=use_multi_gpu, start_epoch=start_epoch, batch_step=batch_step)
 
 
 

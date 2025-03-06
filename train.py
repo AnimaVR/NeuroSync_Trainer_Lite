@@ -3,15 +3,18 @@
 # Businesses or organizations with **annual revenue of $1,000,000 or more** must obtain permission to use this software commercially.
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import torch
+
 from config import training_config as config
-from utils.training_utils import train_model
+from utils.training_helpers import prepare_devices_and_models, load_or_initialize_models
 from utils.model_utils import prepare_training_components
 from dataset.dataset import prepare_dataloader_with_split
-from utils.training_helpers import prepare_devices_and_models, load_or_initialize_models
+from utils.training_utils import train_model
 
 if __name__ == "__main__":
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
     torch.cuda.empty_cache()
 
     train_dataset, val_dataset, train_dataloader, val_dataloader = prepare_dataloader_with_split(config, val_split=0.01)

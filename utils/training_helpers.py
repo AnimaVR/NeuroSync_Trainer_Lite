@@ -6,7 +6,7 @@
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
-
+from torch.cuda.amp import GradScaler, autocast
 
 def init_weights(m):
     if isinstance(m, (nn.Linear, nn.Conv1d)):

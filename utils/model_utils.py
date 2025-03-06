@@ -6,7 +6,7 @@
 import os
 import torch
 import torch.optim as optim
-
+import torch.nn as nn
 from utils.model import Seq2Seq, Encoder, Decoder, Loss
 
 def prepare_training_components(config, model):

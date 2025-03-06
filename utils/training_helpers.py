@@ -101,19 +101,7 @@ def _backward_and_step_single_gpu(loss, model, optimizer, clip, use_amp, grad_sc
         optimizer.step()
     return total_norm
 
-def _run_validation_single_gpu(model, val_batch, device, use_amp, criterion):
-    """
-    Runs a validation step for a single GPU.
-    """
-    model.eval()  # Switch to evaluation mode
-    with torch.no_grad():
-        val_src, val_trg = val_batch
-        val_src, val_trg = val_src.to(device), val_trg.to(device)
-        with torch.amp.autocast(device_type='cuda', enabled=use_amp):
-            val_output = model(val_src)
-            val_loss = criterion(val_output, val_trg)
-    model.train()  # Switch back to training mode
-    return val_loss
+
 
 # -----------------------------------------------------------------------------
 # Helper functions for multi GPU training
@@ -221,20 +209,6 @@ def _sync_models(models):
                 p.grad.zero_()
 
 
-
-def _run_validation_multi_gpu(model, val_batch, device, use_amp, criterion):
-    """
-    Runs a validation step using the primary model (for multi GPU training).
-    """
-    model.eval()  # Use primary model for validation.
-    with torch.no_grad():
-        val_src, val_trg = val_batch
-        val_src, val_trg = val_src.to(device), val_trg.to(device)
-        with torch.amp.autocast(device_type='cuda', enabled=use_amp):
-            val_output = model(val_src)
-            val_loss = criterion(val_output, val_trg)
-    model.train()
-    return val_loss
 
 
 

@@ -19,13 +19,12 @@ from utils.training_helpers import (
     _backward_and_step_single_gpu,
     _compute_losses_multi_gpu,
     _backward_and_step_multi_gpu,
-    _sync_models,
     print_epoch_summary,
     print_training_progress
 )
 
 from utils.checkpoint_utils import save_checkpoint_and_data
-from utils.model_utils import save_final_model, calculate_gradient_norm, count_parameters
+from utils.model_utils import save_final_model, calculate_gradient_norm, count_parameters, _sync_models
 from utils.validation import save_gradient_norm_plot, save_loss_plot, _run_validation_single_gpu, _run_validation_multi_gpu
 
 def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):

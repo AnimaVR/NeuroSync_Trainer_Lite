@@ -4,10 +4,78 @@
 # training_helpers.py
 
 
+import os
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.cuda.amp import GradScaler, autocast
+from utils.model_utils import build_model
+from utils.checkpoint_utils import load_checkpoint
+
+def prepare_devices_and_models(config):
+    """
+    Prepares GPU devices and builds models for training.
+    
+    Returns:
+        devices (list): List of torch.device objects (length 4, padded with None if needed).
+        use_multi_gpu (bool): Whether to use multi-GPU training.
+        models (tuple): (model_0, model_1, model_2, model_3)
+    """
+    desired_gpus = config.get('num_gpus', 1)
+    device_count = torch.cuda.device_count()
+    use_multi_gpu = config.get('use_multi_gpu', False) and (device_count > 1)
+
+    devices = [torch.device(f'cuda:{i}') for i in range(min(device_count, 4))]
+    while len(devices) < 4:
+        devices.append(None)
+
+    model_0 = build_model(config, devices[0] if devices[0] else torch.device('cpu'))
+    model_1 = build_model(config, devices[1]) if (use_multi_gpu and desired_gpus >= 2 and devices[1]) else None
+    model_2 = build_model(config, devices[2]) if (use_multi_gpu and desired_gpus >= 3 and devices[2]) else None
+    model_3 = build_model(config, devices[3]) if (use_multi_gpu and desired_gpus >= 4 and devices[3]) else None
+
+    return devices, use_multi_gpu, (model_0, model_1, model_2, model_3)
+
+
+def load_or_initialize_models(config, models, optimizer, scheduler, device):
+    """
+    Loads a checkpoint if in resume mode, or initializes the models if not.
+    
+    Args:
+        config (dict): Training configuration.
+        models (tuple): (model_0, model_1, model_2, model_3).
+        optimizer, scheduler: Training components.
+        device (torch.device): Primary device.
+    
+    Returns:
+        Updated models (tuple), optimizer, scheduler, start_epoch, batch_step.
+    """
+    model_0, model_1, model_2, model_3 = models
+    start_epoch, batch_step = 0, 0
+    checkpoint_path = config.get('checkpoint_path', '')
+
+    if config.get('mode') == 'resume' and os.path.exists(checkpoint_path):
+        start_epoch, batch_step, model_0, optimizer, scheduler = load_checkpoint(
+            checkpoint_path, model_0, optimizer, scheduler, device
+        )
+        start_epoch += 1  # Resume from the next epoch.
+        # Sync the secondary models with model_0's weights.
+        for model in (model_1, model_2, model_3):
+            if model is not None:
+                model.load_state_dict(model_0.state_dict())
+    else:
+        # Initialize model_0 and sync secondary models.
+        model_0.apply(init_weights)
+        for model in (model_1, model_2, model_3):
+            if model is not None:
+                model.load_state_dict(model_0.state_dict())
+    
+    return (model_0, model_1, model_2, model_3), optimizer, scheduler, start_epoch, batch_step
+
+
+
+
+
 
 def init_weights(m):
     if isinstance(m, (nn.Linear, nn.Conv1d)):

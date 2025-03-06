@@ -22,8 +22,7 @@ if __name__ == "__main__":
 
     devices, use_multi_gpu, models = prepare_devices_and_models(config)
 
-    model_0 = models[0]
-    criterion, optimizer, scheduler = prepare_training_components(config, model_0)
+    criterion, optimizer, scheduler = prepare_training_components(config, models[0])
     
     models, optimizer, scheduler, start_epoch, batch_step = load_or_initialize_models(config, models, optimizer, scheduler, devices[0])
     

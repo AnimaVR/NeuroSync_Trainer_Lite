@@ -3,14 +3,12 @@
 # Businesses or organizations with **annual revenue of $1,000,000 or more** must obtain permission to use this software commercially.
 # training_helpers.py
 
-# training_helpers.py
-
 import os
 import torch
 import torch.nn as nn
 
 from torch.cuda.amp import GradScaler, autocast
-from utils.model_utils import build_model
+from utils.model_utils import build_model, calculate_gradient_norm, init_weights, count_parameters
 from utils.checkpoint_utils import load_checkpoint
 
 def prepare_devices_and_models(config):
@@ -242,30 +240,6 @@ def _run_validation_multi_gpu(model, val_batch, device, use_amp, criterion):
 
 
 
-def init_weights(m):
-    if isinstance(m, (nn.Linear, nn.Conv1d)):
-        print(f"Initializing {m} with normal distribution")
-        nn.init.normal_(m.weight, mean=0.0, std=0.02)
-        if m.bias is not None:
-            nn.init.constant_(m.bias, 0)
-
-def count_parameters(model):
-    """Count and print the number of parameters in a model."""
-    param_count = sum(p.numel() for p in model.parameters())
-    print(f"Total number of parameters: {param_count}")
-    return param_count
-
-
-def calculate_gradient_norm(model):
-    """Calculate and return the gradient norm for the model."""
-    total_norm = 0
-    for p in model.parameters():
-        if p.grad is not None:
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-    total_norm = total_norm ** (1. / 2)
-    return total_norm
-
 def print_training_progress(batch_idx, total_norm, batch_loss, batch_step, epoch, total_epochs, dataloader_len, pbar):
     """Print training progress and update the progress bar."""
     print(f"Batch {batch_idx}, Gradient Norm: {total_norm}")
@@ -276,4 +250,6 @@ def print_training_progress(batch_idx, total_norm, batch_loss, batch_step, epoch
 def print_epoch_summary(epoch, total_epochs, epoch_loss, dataloader_len, epoch_time):
     """Print the summary of the epoch."""
     print(f"Epoch [{epoch + 1}/{total_epochs}], Loss: {epoch_loss / dataloader_len:.4f}, Time: {epoch_time:.2f} seconds")
+
+
 

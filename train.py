@@ -6,7 +6,7 @@ import os
 import torch
 from config import training_config as config
 from utils.training_utils import train_model
-from utils.model_utils import build_model, prepare_training_components
+from utils.model_utils import prepare_training_components
 from dataset.dataset import prepare_dataloader_with_split
 from utils.training_helpers import prepare_devices_and_models, load_or_initialize_models
 

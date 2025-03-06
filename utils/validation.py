@@ -8,7 +8,7 @@ import multiprocessing
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import torch
 from utils.audio.extraction.extract_features import extract_audio_features
 from utils.audio.processing.audio_processing import process_audio_features
 from utils.csv.save_csv import save_generated_data_as_csv
@@ -164,3 +164,32 @@ def save_loss_plot(epoch, train_steps, train_losses, val_steps, val_losses, save
     plt.savefig(plot_path)
     plt.close()
     print(f"Loss plot saved to {plot_path}")
+
+
+def _run_validation_multi_gpu(model, val_batch, device, use_amp, criterion):
+    """
+    Runs a validation step using the primary model (for multi GPU training).
+    """
+    model.eval()  # Use primary model for validation.
+    with torch.no_grad():
+        val_src, val_trg = val_batch
+        val_src, val_trg = val_src.to(device), val_trg.to(device)
+        with torch.amp.autocast(device_type='cuda', enabled=use_amp):
+            val_output = model(val_src)
+            val_loss = criterion(val_output, val_trg)
+    model.train()
+    return val_loss
+
+def _run_validation_single_gpu(model, val_batch, device, use_amp, criterion):
+    """
+    Runs a validation step for a single GPU.
+    """
+    model.eval()  # Switch to evaluation mode
+    with torch.no_grad():
+        val_src, val_trg = val_batch
+        val_src, val_trg = val_src.to(device), val_trg.to(device)
+        with torch.amp.autocast(device_type='cuda', enabled=use_amp):
+            val_output = model(val_src)
+            val_loss = criterion(val_output, val_trg)
+    model.train()  # Switch back to training mode
+    return val_loss

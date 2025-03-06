@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 from torch.cuda.amp import GradScaler, autocast
-from utils.model_utils import build_model, calculate_gradient_norm, init_weights, count_parameters
+from utils.model_utils import build_model, calculate_gradient_norm, init_weights
 from utils.checkpoint_utils import load_checkpoint
 
 def prepare_devices_and_models(config):

@@ -22,14 +22,11 @@ from utils.training_helpers import (
     _sync_models,
     _run_validation_multi_gpu,
     print_epoch_summary,
-    print_training_progress,
-    calculate_gradient_norm,
-    count_parameters
+    print_training_progress
 )
 
 from utils.checkpoint_utils import save_checkpoint_and_data
-from utils.model_utils import save_final_model
-
+from utils.model_utils import save_final_model, calculate_gradient_norm, count_parameters
 from utils.validation import save_gradient_norm_plot, save_loss_plot
 
 def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):

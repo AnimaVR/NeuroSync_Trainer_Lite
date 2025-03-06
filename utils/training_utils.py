@@ -4,10 +4,13 @@
 
 # training_utils.py
 
+
 import torch
 import torch.nn as nn
 import time
 import os
+import multiprocessing
+from tqdm import tqdm
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
 from utils.training_helpers import (
@@ -17,8 +20,51 @@ from utils.training_helpers import (
     _compute_losses_multi_gpu,
     _backward_and_step_multi_gpu,
     _sync_models,
-    _run_validation_multi_gpu, save_loss_plot, save_gradient_norm_plot, print_epoch_summary, print_training_progress, calculate_gradient_norm
+    _run_validation_multi_gpu,
+    save_loss_plot,
+    save_gradient_norm_plot,
+    print_epoch_summary,
+    print_training_progress,
+    calculate_gradient_norm,
+    count_parameters
 )
+
+from utils.checkpoint_utils import save_checkpoint_and_data
+from utils.model_utils import save_final_model
+
+
+
+def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):
+    """General-purpose training loop that decides whether to use single- or multi-GPU training."""
+    n_epochs = config['n_epochs']
+    total_batches = n_epochs * len(dataloader)
+    lock = multiprocessing.Lock()
+    count_parameters(model_0)
+    device0, use_amp, scaler = devices[0], config.get('use_amp', True), GradScaler() if config.get('use_amp', True) else None
+
+    with tqdm(total=total_batches, desc="Training", dynamic_ncols=True) as pbar:
+        for epoch in range(start_epoch, n_epochs):
+            if use_multi_gpu:
+                # Gather models and corresponding devices that are not None:
+                models_list = [m for m in (model_0, model_1, model_2, model_3) if m is not None]
+                used_devices = [d for m, d in zip((model_0, model_1, model_2, model_3), devices) if m is not None]
+                batch_step = train_one_epoch_multi_gpu(
+                    epoch, models_list, dataloader, criterion, optimizer, used_devices, clip=2.0,
+                    batch_step=batch_step, pbar=pbar, total_epochs=n_epochs, use_amp=use_amp,
+                    grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20
+                )
+            else:
+                batch_step = train_one_epoch(
+                    epoch, model=model_0, dataloader=dataloader, criterion=criterion, optimizer=optimizer,
+                    device=device0, clip=2.0, batch_step=batch_step, pbar=pbar, total_epochs=n_epochs,
+                    use_amp=use_amp, grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20
+                )
+            scheduler.step()
+            save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
+    save_final_model(model_0)
+    return batch_step
+
+
 
 def train_one_epoch(
     epoch,
@@ -152,7 +198,7 @@ def train_one_epoch_multi_gpu(
         epoch_loss += batch_loss
         train_steps.append(batch_step)
         train_losses.append(batch_loss)
-        gradient_norms.append(calculate_gradient_norm(models[0])) 
+        gradient_norms.append(calculate_gradient_norm(models[0]))  
         batch_step += 1
 
         if val_dataloader is not None and (step_idx % validation_interval == 0):
@@ -172,6 +218,8 @@ def train_one_epoch_multi_gpu(
     save_loss_plot(epoch, train_steps, train_losses, val_steps, val_losses, save_dir="dataset/validation_plots/loss")
 
     return batch_step
+
+
 
 
 

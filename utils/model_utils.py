@@ -51,3 +51,27 @@ def save_final_model(model, final_model_path='out/model.pth'):
     torch.save(model.state_dict(), final_model_path)
     print(f"Final model saved to {final_model_path}")
 
+
+def init_weights(m):
+    if isinstance(m, (nn.Linear, nn.Conv1d)):
+        print(f"Initializing {m} with normal distribution")
+        nn.init.normal_(m.weight, mean=0.0, std=0.02)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+
+def count_parameters(model):
+    """Count and print the number of parameters in a model."""
+    param_count = sum(p.numel() for p in model.parameters())
+    print(f"Total number of parameters: {param_count}")
+    return param_count
+
+
+def calculate_gradient_norm(model):
+    """Calculate and return the gradient norm for the model."""
+    total_norm = 0
+    for p in model.parameters():
+        if p.grad is not None:
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+    total_norm = total_norm ** (1. / 2)
+    return total_norm

@@ -2,7 +2,7 @@
 # This software is licensed under a **dual-license model**
 # For individuals and businesses earning **under $1M per year**, this software is licensed under the **MIT License**
 # Businesses or organizations with **annual revenue of $1,000,000 or more** must obtain permission to use this software commercially.
-
+# training_helpers.py
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
@@ -21,7 +21,6 @@ def count_parameters(model):
     print(f"Total number of parameters: {param_count}")
     return param_count
 
-
 def _compute_loss_single_gpu(model, src, trg, criterion, current_step, total_steps, use_amp):
     """
     Computes the loss for a single GPU batch using optional AMP.
@@ -39,13 +38,13 @@ def _backward_and_step_single_gpu(loss, model, optimizer, clip, use_amp, grad_sc
     if use_amp:
         grad_scaler.scale(loss).backward()
         grad_scaler.unscale_(optimizer)
-        total_norm = calculate_gradient_norm(model)  
+        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         grad_scaler.step(optimizer)
         grad_scaler.update()
     else:
         loss.backward()
-        total_norm = calculate_gradient_norm(model)  
+        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
     return total_norm
@@ -89,45 +88,70 @@ def _compute_losses_multi_gpu(models, inputs, targets, criterion, current_step, 
 
 def _backward_and_step_multi_gpu(losses, models, optimizer, devices, clip, use_amp, grad_scaler):
     """
-    Backpropagates on each GPU loss, unscales (if AMP), synchronizes gradients, averages them,
-    clips gradients, and steps the optimizer.
-    Returns the pre-clip gradient norm of the primary model.
+    Backpropagates on each GPU loss, unscales (if AMP is used), synchronizes gradients,
+    averages them in a vectorized fashion, clips gradients, and steps the optimizer.
+    
+    This version manually vectorizes the gradient averaging by stacking gradients
+    across devices and computing their mean.
+    
+    Args:
+        losses (list): List of loss tensors (one per model).
+        models (list): List of models (each on its own GPU; models[0] is primary).
+        optimizer (Optimizer): The optimizer tied to models[0].
+        devices (list): List of torch.device objects for each model.
+        clip (float): Maximum gradient norm.
+        use_amp (bool): Whether mixed precision is enabled.
+        grad_scaler: GradScaler instance if AMP is used.
+    
+    Returns:
+        float: The pre-clip gradient norm of the primary model.
     """
     n = len(models)
+    # --- Backward Pass and Unscale Gradients ---
     if use_amp:
+        # Scale each loss and perform backpropagation.
         for loss in losses:
             grad_scaler.scale(loss).backward()
+        # Unscale the gradients in the optimizer.
         grad_scaler.unscale_(optimizer)
-        # Manually unscale gradients for models[1:]
         scale = grad_scaler.get_scale()
-        for i in range(1, n):
-            for p in models[i].parameters():
+        # Manually unscale gradients for models[1:].
+        for model in models[1:]:
+            for p in model.parameters():
                 if p.grad is not None:
+                    # Manually divide the gradient by the scale.
                     p.grad.data = p.grad.data / scale
     else:
         for loss in losses:
             loss.backward()
-
-    # Synchronize all devices.
-    for d in devices:
-        torch.cuda.synchronize(d)
-
-    # Gradient Averaging: Move all gradients to devices[0] and average them.
-    for param_tuple in zip(*[m.parameters() for m in models]):
+    
+    # --- Synchronize Devices ---
+    for device in devices:
+        torch.cuda.synchronize(device)
+    
+    # --- Vectorized Gradient Averaging ---
+    # For each group of corresponding parameters from all models:
+    for param_tuple in zip(*[list(model.parameters()) for model in models]):
+        # Only process parameters that have valid gradients in all models.
         if all(p.grad is not None for p in param_tuple):
-            grad_list = [p.grad.data.to(devices[0]) for p in param_tuple]
-            avg_grad = sum(grad_list) / n
-            param_tuple[0].grad.data.copy_(avg_grad.view_as(param_tuple[0]))
-
-    pre_clip_norm = calculate_gradient_norm(models[0])  
+            # Move each gradient to devices[0] and stack them.
+            grads = [p.grad.data.to(devices[0]) for p in param_tuple]
+            stacked_grads = torch.stack(grads, dim=0)  # Shape: (n, *param_shape)
+            # Compute the average gradient (vectorized).
+            avg_grad = torch.mean(stacked_grads, dim=0)
+            # Update the primary model's gradient with the averaged value.
+            param_tuple[0].grad.data.copy_(avg_grad)
+    
+    # --- Gradient Clipping and Optimizer Step ---
+    pre_clip_norm = calculate_gradient_norm(models[0])  # <-- Assumes calculate_gradient_norm is defined
     torch.nn.utils.clip_grad_norm_(models[0].parameters(), clip)
-
+    
     if use_amp:
         grad_scaler.step(optimizer)
         grad_scaler.update()
     else:
         optimizer.step()
-
+    
     return pre_clip_norm
 
 def _sync_models(models):
@@ -144,6 +168,13 @@ def _sync_models(models):
             if p.grad is not None:
                 p.grad.zero_()
 
+
+
+
+
+
+
+
 def _run_validation_multi_gpu(model, val_batch, device, use_amp, criterion):
     """
     Runs a validation step using the primary model (for multi GPU training).
@@ -157,6 +188,22 @@ def _run_validation_multi_gpu(model, val_batch, device, use_amp, criterion):
             val_loss = criterion(val_output, val_trg)
     model.train()
     return val_loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def calculate_gradient_norm(model):

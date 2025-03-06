@@ -33,7 +33,6 @@ SOFTWARE.
 Businesses or organizations with **annual revenue of $1,000,000 or more** must obtain a **commercial license** to use this software.
 
 - To acquire a commercial license, please contact us.
-- This commercial license allows for **enterprise-level support, priority feature requests, and extended rights**.
 
 ## Compliance
 By using this software, you agree to these licensing terms. If your business exceeds the revenue threshold, you must transition to a commercial license or **cease using the software**.

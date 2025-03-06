@@ -75,3 +75,18 @@ def calculate_gradient_norm(model):
             total_norm += param_norm.item() ** 2
     total_norm = total_norm ** (1. / 2)
     return total_norm
+    
+def _sync_models(models):
+    """
+    Synchronizes parameters from the primary model (models[0]) to all other models
+    and zeros their gradients.
+    """
+    for m in models[1:]:
+        for p0, p_other in zip(models[0].parameters(), m.parameters()):
+            p_other.data.copy_(p0.data.to(p_other.device))
+    # Zero gradients for models[1:].
+    for m in models[1:]:
+        for p in m.parameters():
+            if p.grad is not None:
+                p.grad.zero_()
+

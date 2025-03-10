@@ -7,26 +7,27 @@ from config import training_config as config
 
 def find_files(folder_path):
     mov_path, mp4_path, wav_path = None, None, None
-    facial_csv_path, other_csv_path = None, None
+    facial_csv_path, facial_json_path, other_csv_path = None, None, None
 
     # Always set audio_features_csv_path to the expected path, even if it doesn't exist
     audio_features_csv_path = os.path.join(folder_path, 'audio_features.csv')
 
     for file in os.listdir(folder_path):
-        if file.endswith('.mov'):
-            mov_path = os.path.join(folder_path, file)
-        elif file.endswith('.mp4'):
-            mp4_path = os.path.join(folder_path, file)
-        elif file.endswith('.wav'):
+        # if file.endswith('.mov'):
+        #     mov_path = os.path.join(folder_path, file)
+        # elif file.endswith('.mp4'):
+        #     mp4_path = os.path.join(folder_path, file)
+        if file.endswith('.wav'):
             wav_path = os.path.join(folder_path, file)
         elif file.endswith('.csv'):
             if 'iPhone_cal' in file:
                 facial_csv_path = os.path.join(folder_path, file)
             else:
                 other_csv_path = os.path.join(folder_path, file)
-
+        elif file.endswith('.json'):
+            facial_json_path = os.path.join(folder_path, file)
     # Return audio_features_csv_path regardless of its existence
-    return mov_path, mp4_path, wav_path, facial_csv_path, audio_features_csv_path, other_csv_path
+    return mov_path, mp4_path, wav_path, facial_csv_path, facial_json_path, audio_features_csv_path, other_csv_path
 
 def get_audio(video_path, wav_path, folder_path):
     if video_path:

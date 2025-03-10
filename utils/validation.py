@@ -16,29 +16,34 @@ from utils.csv.save_csv import save_generated_data_as_csv
 from utils.csv.plot_comparison import plot_comparison
 from config import training_config
 
+
+def save_generated_data(generated_facial_data, output_path):
+    
+    torch.save(generated_facial_data, output_path)
+
 def generate_and_save_facial_data(epoch, audio_path, model, ground_truth_path, lock, device):
     
     audio_features, _ = extract_audio_features(audio_path)
        
     generated_facial_data = process_audio_features(audio_features, model, device, training_config)
     
-    output_csv_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/generated_facial_data_epoch_{epoch + 1}.csv"
+    output_csv_path = f"generated_facial_data_epoch_{epoch + 1}.pth"
 
     with lock:
-        csv_process = multiprocessing.Process(target=save_generated_data_as_csv, args=(generated_facial_data, output_csv_path))
+        csv_process = multiprocessing.Process(target=save_generated_data, args=(generated_facial_data, output_csv_path))
         csv_process.start()
         csv_process.join()
 
-    output_image_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/comparison_plot_epoch_{epoch + 1}.jpg"
+    # output_image_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/comparison_plot_epoch_{epoch + 1}.jpg"
     
-    with lock:
-        plot_process = multiprocessing.Process(target=plot_comparison, args=(ground_truth_path, output_csv_path, output_image_path))
-        plot_process.start()
-        plot_process.join()
+    # with lock:
+    #     plot_process = multiprocessing.Process(target=plot_comparison, args=(ground_truth_path, output_csv_path, output_image_path))
+    #     plot_process.start()
+    #     plot_process.join()
             
-    # Save comparison statistics
-    output_stats_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/stats/comparison_stats_epoch_{epoch + 1}.txt"
-    save_comparison_stats(output_csv_path, ground_truth_path, output_stats_path)
+    # # Save comparison statistics
+    # output_stats_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/stats/comparison_stats_epoch_{epoch + 1}.txt"
+    # save_comparison_stats(output_csv_path, ground_truth_path, output_stats_path)
 
 def save_comparison_stats(generated_data_path, ground_truth_path, output_stats_path):
     """
@@ -191,6 +196,7 @@ def _run_validation_single_gpu(model, val_batch, device, use_amp, criterion):
         val_src, val_trg = val_src.to(device), val_trg.to(device)
         with torch.amp.autocast(device_type='cuda', enabled=use_amp):
             val_output = model(val_src)
+            val_trg = val_trg[:, :, 69 : 211]
             val_loss = criterion(val_output, val_trg)
     model.train()  # Switch back to training mode
     return val_loss

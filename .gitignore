@@ -1,0 +1,28 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Dataset folders
+dataset/data_mh/
+wandb/
+
+# Distribution / packaging
+# dist/
+# build/
+# *.egg-info/
+
+# # Virtual environment
+# venv/
+# env/
+# .env/
+
+# # IDE specific files
+# .vscode/
+# .idea/
+
+# # Jupyter Notebook
+# .ipynb_checkpoints
+
+# Model outputs and checkpoints
+out/ 

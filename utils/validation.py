@@ -22,14 +22,14 @@ def generate_and_save_facial_data(epoch, audio_path, model, ground_truth_path, l
        
     generated_facial_data = process_audio_features(audio_features, model, device, training_config)
     
-    output_csv_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/generated_facial_data_epoch_{epoch + 1}.csv"
+    output_csv_path = f"dataset/validation_plots/generated_facial_data_epoch_{epoch + 1}.csv"
 
     with lock:
         csv_process = multiprocessing.Process(target=save_generated_data_as_csv, args=(generated_facial_data, output_csv_path))
         csv_process.start()
         csv_process.join()
 
-    output_image_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/comparison_plot_epoch_{epoch + 1}.jpg"
+    output_image_path = f"dataset/validation_plots/comparison_plot_epoch_{epoch + 1}.jpg"
     
     with lock:
         plot_process = multiprocessing.Process(target=plot_comparison, args=(ground_truth_path, output_csv_path, output_image_path))
@@ -37,7 +37,7 @@ def generate_and_save_facial_data(epoch, audio_path, model, ground_truth_path, l
         plot_process.join()
             
     # Save comparison statistics
-    output_stats_path = f"/home/xianchi/python/neurosync/trainer/dataset/validation_plots/stats/comparison_stats_epoch_{epoch + 1}.txt"
+    output_stats_path = f"dataset/validation_plots/stats/comparison_stats_epoch_{epoch + 1}.txt"
     save_comparison_stats(output_csv_path, ground_truth_path, output_stats_path)
 
 def save_comparison_stats(generated_data_path, ground_truth_path, output_stats_path):

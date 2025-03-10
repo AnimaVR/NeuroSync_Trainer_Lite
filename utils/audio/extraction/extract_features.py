@@ -9,7 +9,8 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
     else:
         y, sr = load_and_preprocess_audio(audio_input, sr)
     
-    frame_length = int(0.01667 * sr)  # Frame length set to 0.01667 seconds (~60 fps)
+    # frame_length = int(0.01667 * sr)  # Frame length set to 0.01667 seconds (~60 fps)
+    frame_length = int(0.03333 * sr)
     hop_length = frame_length // 2  # 2x overlap for smoother transitions
     min_frames = 9  # Minimum number of frames needed for delta calculation
 

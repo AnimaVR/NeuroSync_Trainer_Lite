@@ -13,6 +13,7 @@ import multiprocessing
 from tqdm import tqdm
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
+import wandb
 
 from utils.training_helpers import (
     _compute_loss_single_gpu,
@@ -29,6 +30,9 @@ from utils.validation import save_gradient_norm_plot, save_loss_plot, _run_valid
 
 def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):
     """General-purpose training loop that decides whether to use single- or multi-GPU training."""
+    # Initialize wandb with config
+    wandb.init(project="neurosync", config=config)
+    
     n_epochs = config['n_epochs']
     total_batches = n_epochs * len(dataloader)
     lock = multiprocessing.Lock()
@@ -50,7 +54,8 @@ def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_data
                 batch_step = train_one_epoch(
                     epoch, model=model_0, dataloader=dataloader, criterion=criterion, optimizer=optimizer,
                     device=device0, clip=2.0, batch_step=batch_step, pbar=pbar, total_epochs=n_epochs,
-                    use_amp=use_amp, grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20
+                    use_amp=use_amp, grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20,
+                    config=config
                 )
             scheduler.step()
             save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
@@ -59,7 +64,7 @@ def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_data
 
 
 
-def train_one_epoch(
+def  train_one_epoch(
     epoch,
     model,
     dataloader,
@@ -73,7 +78,8 @@ def train_one_epoch(
     use_amp=False,              # Whether to enable mixed precision
     grad_scaler=None,           # torch.cuda.amp.GradScaler object
     val_dataloader=None,        # Validation DataLoader
-    validation_interval=20      # Validation step every N training batches
+    validation_interval=20,
+    config=None # Validation step every N training batches
 ):
     """
     Trains the model for one epoch on a single GPU, with optional mixed precision and
@@ -109,6 +115,15 @@ def train_one_epoch(
         epoch_loss += loss.item()
         batch_step += 1
 
+        # Log training metrics to wandb
+        wandb.log({
+            "train_loss": loss.item(),
+            "gradient_norm": total_norm,
+            "learning_rate": optimizer.param_groups[0]['lr'],
+            "batch": batch_step,
+            "epoch": epoch
+        })
+
         if val_dataloader is not None and (batch_idx % validation_interval == 0):
             try:
                 val_batch = next(val_iter)
@@ -119,11 +134,23 @@ def train_one_epoch(
             print(f"[Epoch {epoch} - Batch {batch_idx}] Validation Loss: {val_loss.item():.4f}")
             val_steps.append(batch_step)
             val_losses.append(val_loss.item())
+            
+            # Log validation metrics to wandb
+            wandb.log({
+                "val_loss": val_loss.item(),
+                "batch": batch_step,
+                "epoch": epoch
+            })
 
     end_time = time.time()
-    print_epoch_summary(epoch, total_epochs, epoch_loss, len(dataloader), end_time - start_time)
-    save_loss_plot(epoch, train_steps, train_losses, val_steps, val_losses, save_dir="dataset/validation_plots/loss")
-    save_gradient_norm_plot(epoch, gradient_norms, save_dir="dataset/validation_plots/gradient_norms")
+    epoch_avg_loss = epoch_loss / len(dataloader)
+    
+    # Log epoch-level metrics
+    wandb.log({
+        "epoch_avg_loss": epoch_avg_loss,
+        "epoch_time": end_time - start_time,
+        "epoch": epoch
+    })
     
     return batch_step
 

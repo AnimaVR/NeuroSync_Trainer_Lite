@@ -48,12 +48,12 @@ def scale_facial_data(facial_data, scale_factor=1.1):
 
 def process_folder(folder_path, sr, apply_smoothing=False, apply_over_scale=False):
     
-    mov_path, mp4_path, wav_path, facial_csv_path, audio_features_csv_path, _ = find_files(folder_path)
+    mov_path, mp4_path, wav_path, facial_csv_path, facial_json_path, audio_features_csv_path, _ = find_files(folder_path)
     
     video_path = mov_path or mp4_path
     
     # Check if we have facial CSV and either video/audio paths or the audio features CSV file
-    if facial_csv_path and (video_path or wav_path or os.path.exists(audio_features_csv_path)):
+    if (facial_json_path or facial_csv_path) and (video_path or wav_path or os.path.exists(audio_features_csv_path)):
         
         # Only try to get audio path and frames if we have video or audio paths
         if video_path or wav_path:
@@ -65,7 +65,7 @@ def process_folder(folder_path, sr, apply_smoothing=False, apply_over_scale=Fals
         if audio_path or os.path.exists(audio_features_csv_path):
             
             # Collect features using either the audio file or 'audio_features.csv'
-            audio_features, facial_data = collect_features(audio_path if audio_path else _, audio_features_csv_path, facial_csv_path, sr)
+            audio_features, facial_data = collect_features(audio_path if audio_path else _, audio_features_csv_path, facial_csv_path, facial_json_path, sr)   
 
             if apply_over_scale:
                 facial_data = scale_facial_data(facial_data)
@@ -110,7 +110,25 @@ def interpolate_slower(data):
     out[-1] = data[-1]
     return out
 
-def collect_features(audio_path, audio_features_csv_path, facial_csv_path, sr,
+
+
+def read_json_facial_data(facial_json_path):
+    import json
+    with open(facial_json_path, 'r') as f:
+        data = json.load(f)
+    
+    if isinstance(data, list):
+        return np.array([list(d["BlendShapes"].values()) for d in data])
+        
+    elif isinstance(data, dict):
+        return np.array([list(d["BlendShapes"].values()) for d in data["AnimationFrames"]])
+    
+    else:
+        raise ValueError(f"Unexpected data type: {type(data)}")
+    
+    return None
+
+def collect_features(audio_path, audio_features_csv_path, facial_csv_path, facial_json_path, sr,
                      include_fast=True, include_slow=False, blend_boundaries=True, blend_frames=30):
 
     # Load or extract audio features
@@ -125,7 +143,10 @@ def collect_features(audio_path, audio_features_csv_path, facial_csv_path, sr,
             print(f"Audio features saved to {audio_features_csv_path}")
 
     # Load and process the facial data
-    facial_data = pd.read_csv(facial_csv_path).drop(columns=COLUMNS_TO_DROP).values
+    if facial_json_path:
+        facial_data = read_json_facial_data(facial_json_path)
+    elif facial_csv_path:
+        facial_data = pd.read_csv(facial_csv_path).drop(columns=COLUMNS_TO_DROP).values
 
     # --- Matching lengths logic ---
     if audio_features is not None and facial_data is not None:

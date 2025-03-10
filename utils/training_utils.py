@@ -27,6 +27,8 @@ from utils.training_helpers import (
 from utils.checkpoint_utils import save_checkpoint_and_data
 from utils.model_utils import save_final_model, calculate_gradient_norm, count_parameters, _sync_models
 from utils.validation import save_gradient_norm_plot, save_loss_plot, _run_validation_single_gpu, _run_validation_multi_gpu
+from utils.validation import generate_and_save_facial_data
+
 
 def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_dataloader, criterion, optimizer, scheduler, devices, use_multi_gpu=False, start_epoch=0, batch_step=0):
     """General-purpose training loop that decides whether to use single- or multi-GPU training."""
@@ -39,6 +41,9 @@ def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_data
     count_parameters(model_0)
     device0, use_amp, scaler = devices[0], config.get('use_amp', True), GradScaler() if config.get('use_amp', True) else None
 
+    best_train_loss = 99999
+    best_val_loss = 99999
+    
     with tqdm(total=total_batches, desc="Training", dynamic_ncols=True) as pbar:
         for epoch in range(start_epoch, n_epochs):
             if use_multi_gpu:
@@ -51,14 +56,47 @@ def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_data
                     grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20
                 )
             else:
-                batch_step = train_one_epoch(
+                batch_step, loss, val_loss = train_one_epoch(
                     epoch, model=model_0, dataloader=dataloader, criterion=criterion, optimizer=optimizer,
                     device=device0, clip=2.0, batch_step=batch_step, pbar=pbar, total_epochs=n_epochs,
                     use_amp=use_amp, grad_scaler=scaler, val_dataloader=val_dataloader, validation_interval=20,
                     config=config
                 )
+                
+                if loss < best_train_loss:
+                    best_train_loss = loss
+                    torch.save({
+                        "model_state_dict": model_0.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "scheduler_state_dict": scheduler.state_dict(),
+                        "epoch": epoch,
+                        "batch_step": batch_step,
+                        "best_train_loss": best_train_loss,
+                        "best_val_loss": best_val_loss
+                    }, os.path.join(config['model_path'], "best_train_model.pth"))
+                    generate_and_save_facial_data(epoch, config['audio_path'], model_0, config['ground_truth_path'], lock, device0)
+                    
+                    
+                
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    torch.save({
+                        "model_state_dict": model_0.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "scheduler_state_dict": scheduler.state_dict(),
+                    }, os.path.join(config['model_path'], "best_val_model.pth"))    
+                    generate_and_save_facial_data(epoch, config['audio_path'],  model_0, config['ground_truth_path'], lock, device0)
+                
+                # save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
+                
+                
             scheduler.step()
-            save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
+            
+            
+            
+            
+            
+            # save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
     save_final_model(model_0)
     return batch_step
 
@@ -96,6 +134,10 @@ def  train_one_epoch(
     train_steps, train_losses = [], []
     val_steps, val_losses = [], []
 
+    # Track best losses
+    # best_train_loss = 99999 #float('inf') if not hasattr(model, 'best_train_loss') else model.best_train_loss
+    # best_val_loss = 99999 #float('inf') if not hasattr(model, 'best_val_loss') else model.best_val_loss
+
     if val_dataloader is not None:
         val_iter = iter(val_dataloader)
 
@@ -115,6 +157,15 @@ def  train_one_epoch(
         epoch_loss += loss.item()
         batch_step += 1
 
+        # Check and save best training model
+        # if loss.item() < best_train_loss:
+        #     best_train_loss = loss.item()
+        #     model.best_train_loss = best_train_loss
+        #     save_checkpoint_and_data(
+        #         epoch, model, optimizer, scheduler, batch_step, config, 
+        #         lock=None, device=device, suffix='best_train'
+        #     )
+
         # Log training metrics to wandb
         wandb.log({
             "train_loss": loss.item(),
@@ -131,6 +182,16 @@ def  train_one_epoch(
                 val_iter = iter(val_dataloader)
                 val_batch = next(val_iter)
             val_loss = _run_validation_single_gpu(model, val_batch, device, use_amp, criterion)
+            
+            # Check and save best validation model
+            # if val_loss.item() < best_val_loss:
+            #     best_val_loss = val_loss.item()
+            #     model.best_val_loss = best_val_loss
+            #     save_checkpoint_and_data(
+            #         epoch, model, optimizer, scheduler, batch_step, config, 
+            #         lock=None, device=device, suffix='best_val'
+            #     )
+
             print(f"[Epoch {epoch} - Batch {batch_idx}] Validation Loss: {val_loss.item():.4f}")
             val_steps.append(batch_step)
             val_losses.append(val_loss.item())
@@ -152,7 +213,7 @@ def  train_one_epoch(
         "epoch": epoch
     })
     
-    return batch_step
+    return batch_step, loss.item(), val_loss.item()
 
 def train_one_epoch_multi_gpu(
     epoch,

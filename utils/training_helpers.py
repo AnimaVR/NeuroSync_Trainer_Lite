@@ -79,7 +79,7 @@ def _compute_loss_single_gpu(model, src, trg, criterion, current_step, total_ste
     """
     with torch.amp.autocast(device_type='cuda', enabled=use_amp):
         output = model(src)
-        trg = trg[:, :, 69 : 211]
+        # trg = trg[:, :, 69 : 211]
         # print(trg.shape, output.shape)
         loss = criterion(output, trg, current_step=current_step, total_steps=total_steps)
     return loss

@@ -196,7 +196,7 @@ def _run_validation_single_gpu(model, val_batch, device, use_amp, criterion):
         val_src, val_trg = val_src.to(device), val_trg.to(device)
         with torch.amp.autocast(device_type='cuda', enabled=use_amp):
             val_output = model(val_src)
-            val_trg = val_trg[:, :, 69 : 211]
+            # val_trg = val_trg[:, :, 69 : 211]
             val_loss = criterion(val_output, val_trg)
     model.train()  # Switch back to training mode
     return val_loss

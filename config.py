@@ -57,6 +57,9 @@ training_config = {
     'ground_truth_path': os.path.join("dataset", "test_set", "testset.csv"),
     'checkpoint_path': os.path.join("out", "checkpoints", "checkpoint.pth"), 
     'use_amp': True,
-    'in_memory' : True # if true, use in memory data storage - requires a lot of system memory if your dataset is large and is no quicker than if using lazy loading - just dont ;)
+    'in_memory' : True, # if true, use in memory data storage - requires a lot of system memory if your dataset is large and is no quicker than if using lazy loading - just dont ;)
+    'freeze_arkit_generator': True,
+    'with_emotions': False,
+    'arkit_generator_model_path': os.path.join("out", "model.pth")
 }
 

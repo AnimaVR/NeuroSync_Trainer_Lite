@@ -8,6 +8,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from utils.model import Seq2Seq, Encoder, Decoder, Loss
+from utils.model_mh import Seq2Seq_MH
 
 def prepare_training_components(config, model):
     criterion = Loss(delta=config['delta'], w1=config['w1'], w2=config['w2'])
@@ -29,6 +30,11 @@ def build_model(config, device):
     return model
 
 
+def build_mh_model(config, device):
+    model = Seq2Seq_MH(config['arkit_generator_model_path'], config['with_emotions'], config['freeze_arkit_generator'], device).to(device)
+    return model
+    
+    
 def load_model(model_path, config, device):
     hidden_dim = config['hidden_dim']
     n_layers = config['n_layers']

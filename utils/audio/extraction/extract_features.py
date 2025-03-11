@@ -3,7 +3,7 @@ import numpy as np
 from utils.audio.load_audio import load_and_preprocess_audio, load_audio_from_bytes
 from utils.audio.extraction.extract_features_utils import  smooth_features, extract_mfcc_features, extract_autocorrelation_features
 
-def extract_audio_features(audio_input, sr=88200, from_bytes=False):
+def extract_audio_features(audio_input, sr=48000, from_bytes=False):
     if from_bytes:
         y, sr = load_audio_from_bytes(audio_input, sr)
     else:

@@ -30,6 +30,16 @@ def decode_audio_chunk(audio_chunk, model, device):
         decoded_outputs = output_sequence.squeeze(0).cpu().numpy()
     return decoded_outputs
 
+def decode_audio_chunk_mh(audio_chunk, model, device):
+    src_tensor = torch.tensor(audio_chunk, dtype=torch.float32).unsqueeze(0).to(device)
+    with torch.no_grad():
+        # encoder_outputs = model.encoder(src_tensor)
+        # output_sequence = model.decoder(encoder_outputs)
+        output_sequence = model(src_tensor)
+        decoded_outputs = output_sequence.squeeze(0).cpu().numpy()
+    return decoded_outputs
+
+
 def blend_chunks(chunk1, chunk2, overlap):
     """Linearly blends the overlapping region between two chunks."""
     # Adjust overlap if either chunk has fewer frames than overlap
@@ -68,7 +78,7 @@ def process_audio_features(audio_features, model, device, config):
         audio_chunk = pad_audio_chunk(audio_chunk, frame_length, num_features)
         
         # Decode the current audio chunk
-        decoded_outputs = decode_audio_chunk(audio_chunk, model, device)
+        decoded_outputs = decode_audio_chunk_mh(audio_chunk, model, device)
         decoded_outputs = decoded_outputs[:end_idx - start_idx]
         
         # Blend with the last chunk if it exists
@@ -89,7 +99,7 @@ def process_audio_features(audio_features, model, device, config):
         final_chunk_start = num_frames - remaining_frames
         audio_chunk = audio_features[final_chunk_start:num_frames]
         audio_chunk = pad_audio_chunk(audio_chunk, frame_length, num_features)
-        decoded_outputs = decode_audio_chunk(audio_chunk, model, device)
+        decoded_outputs = decode_audio_chunk_mh(audio_chunk, model, device)
         all_decoded_outputs.append(decoded_outputs[:remaining_frames])
 
     # Concatenate all chunks and trim to the original frame count
@@ -99,7 +109,7 @@ def process_audio_features(audio_features, model, device, config):
     # Normalize or apply any post-processing
     final_decoded_outputs = ensure_2d(final_decoded_outputs)
 
-    final_decoded_outputs[:, :61] /= 100  
+    # final_decoded_outputs[:, :61] /= 100  
 
     # Zero specified columns using the helper method
     

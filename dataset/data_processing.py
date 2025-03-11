@@ -118,10 +118,10 @@ def read_json_facial_data(facial_json_path):
         data = json.load(f)
     
     if isinstance(data, list):
-        return np.array([list(d["BlendShapes"].values()) for d in data])
+        return np.array([list(d["BlendShapes"].values())[:-3] for d in data])
         
     elif isinstance(data, dict):
-        return np.array([list(d["BlendShapes"].values()) for d in data["AnimationFrames"]])
+        return np.array([list(d["BlendShapes"].values())[:-3] for d in data["AnimationFrames"]])
     
     else:
         raise ValueError(f"Unexpected data type: {type(data)}")

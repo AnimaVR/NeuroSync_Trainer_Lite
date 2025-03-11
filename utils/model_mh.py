@@ -302,7 +302,9 @@ class Seq2Seq_MH(nn.Module):
             for param in self.arkit_generator.parameters():
                 param.requires_grad = False
         
-        if with_emotions:
+        self.with_emotions = with_emotions
+        
+        if self.with_emotions:
             self.arkit_to_mh = nn.Linear(68, 275)
         else:
             self.arkit_to_mh = nn.Linear(61, 275)

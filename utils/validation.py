@@ -21,13 +21,13 @@ def save_generated_data(generated_facial_data, output_path):
     
     torch.save(generated_facial_data, output_path)
 
-def generate_and_save_facial_data(epoch, audio_path, model, ground_truth_path, lock, device):
+def generate_and_save_facial_data(epoch, audio_path, model, ground_truth_path, lock, mode, device):
     
     audio_features, _ = extract_audio_features(audio_path)
        
     generated_facial_data = process_audio_features(audio_features, model, device, training_config)
     
-    output_csv_path = f"generated_facial_data_epoch_{epoch + 1}.pth"
+    output_csv_path = f"generated_facial_data_epoch_{mode}.pth"
 
     with lock:
         csv_process = multiprocessing.Process(target=save_generated_data, args=(generated_facial_data, output_csv_path))

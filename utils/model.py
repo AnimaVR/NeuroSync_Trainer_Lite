@@ -53,7 +53,6 @@ class GlobalPositionalEncoding(nn.Module):
         return x
 
 
-
 # -------------------------------------------------------------------------------------------
 # Rotary Positional Embedding (RoPE) for Local Attention
 # -------------------------------------------------------------------------------------------

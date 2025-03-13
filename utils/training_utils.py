@@ -74,7 +74,7 @@ def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_data
                         "best_train_loss": best_train_loss,
                         "best_val_loss": best_val_loss
                     }, os.path.join(config['model_path'], "best_train_model.pth"))
-                    generate_and_save_facial_data(epoch, config['audio_path'], model_0, config['ground_truth_path'], lock, device0)
+                    generate_and_save_facial_data(epoch, config['audio_path'], model_0, config['ground_truth_path'], lock, "train", device0)
                     
                     
                 
@@ -85,7 +85,7 @@ def train_model(config, model_0, model_1, model_2, model_3, dataloader, val_data
                         "optimizer_state_dict": optimizer.state_dict(),
                         "scheduler_state_dict": scheduler.state_dict(),
                     }, os.path.join(config['model_path'], "best_val_model.pth"))    
-                    generate_and_save_facial_data(epoch, config['audio_path'],  model_0, config['ground_truth_path'], lock, device0)
+                    generate_and_save_facial_data(epoch, config['audio_path'],  model_0, config['ground_truth_path'], lock, "val", device0)
                 
                 # save_checkpoint_and_data(epoch, model_0, optimizer, scheduler, batch_step, config, lock, device0)
                 

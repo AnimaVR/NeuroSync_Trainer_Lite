@@ -152,7 +152,7 @@ def  train_one_epoch(
 
         train_steps.append(batch_step)
         train_losses.append(loss.item())
-        print_training_progress(batch_idx, total_norm, loss.item(), batch_step, epoch, total_epochs, len(dataloader), pbar)
+        # print_training_progress(batch_idx, total_norm, loss.item(), batch_step, epoch, total_epochs, len(dataloader), pbar)
         gradient_norms.append(total_norm)
         epoch_loss += loss.item()
         batch_step += 1
@@ -213,6 +213,8 @@ def  train_one_epoch(
         "epoch": epoch
     })
     
+    steps_per_epoch = len(dataloader)
+    print_epoch_summary(epoch, total_epochs, epoch_loss, steps_per_epoch, end_time - start_time)
     return batch_step, loss.item(), val_loss.item()
 
 def train_one_epoch_multi_gpu(

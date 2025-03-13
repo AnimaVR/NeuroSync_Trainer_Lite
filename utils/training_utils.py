@@ -192,7 +192,7 @@ def  train_one_epoch(
             #         lock=None, device=device, suffix='best_val'
             #     )
 
-            print(f"[Epoch {epoch} - Batch {batch_idx}] Validation Loss: {val_loss.item():.4f}")
+            # print(f"[Epoch {epoch} - Batch {batch_idx}] Validation Loss: {val_loss.item():.4f}")
             val_steps.append(batch_step)
             val_losses.append(val_loss.item())
             

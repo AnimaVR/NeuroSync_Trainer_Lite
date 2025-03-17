@@ -293,7 +293,7 @@ def load_arkit_generator(arkit_generator_model_path, device):
 
 
 class Seq2Seq_MH(nn.Module):
-    def __init__(self, arkit_generator_model_path, with_emotions, freeze_arkit_generator, device):
+    def __init__(self, arkit_generator_model_path, with_emotions, freeze_arkit_generator, output_dim, device):
         super(Seq2Seq_MH, self).__init__()
         
         self.arkit_generator = load_arkit_generator(arkit_generator_model_path, device)
@@ -307,14 +307,20 @@ class Seq2Seq_MH(nn.Module):
         if self.with_emotions:
             self.arkit_to_mh = nn.Linear(68, 275)
         else:
-            self.arkit_to_mh = nn.Linear(61, 275)
+            self.arkit_to_mh = nn.Linear(30, 145)
             
     def forward(self, src):
         
         arkit_output = self.arkit_generator(src)
+        
+        assert self.with_emotions is False
         if not self.with_emotions:
             arkit_output = arkit_output[:, :, :61]
         
+        
+        mouth_output = arkit_output[:, :, 14:41]
+        head_output= arkit_output[:, :, 52:55]
+        arkit_output = torch.concat(mouth_output, head_output, dim=-1)
         mh_output = self.arkit_to_mh(arkit_output)
         
         return mh_output

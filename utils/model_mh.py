@@ -293,7 +293,7 @@ def load_arkit_generator(arkit_generator_model_path, device):
 
 
 class Seq2Seq_MH(nn.Module):
-    def __init__(self, arkit_generator_model_path, with_emotions, freeze_arkit_generator, output_dim, device):
+    def __init__(self, arkit_generator_model_path, with_emotions, freeze_arkit_generator, device):
         super(Seq2Seq_MH, self).__init__()
         
         self.arkit_generator = load_arkit_generator(arkit_generator_model_path, device)

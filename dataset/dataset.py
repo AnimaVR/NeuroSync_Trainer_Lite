@@ -162,7 +162,7 @@ class InMemoryAudioFacialDataset(Dataset):
 # Incomplete windows are dropped (no reflection padding).
 # =============================================================================
 class LazyAudioFacialDataset(Dataset):
-    def __init__(self, config, preload_index=True, force_reprocess=True):
+    def __init__(self, config, preload_index=True, force_reprocess=False):
         """
         Parameters:
           config         - dict with keys: 'root_dir', 'sr', 'micro_batch_size', etc.

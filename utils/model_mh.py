@@ -320,7 +320,7 @@ class Seq2Seq_MH(nn.Module):
         
         mouth_output = arkit_output[:, :, 14:41]
         head_output= arkit_output[:, :, 52:55]
-        arkit_output = torch.concat(mouth_output, head_output, dim=-1)
+        arkit_output = torch.concat([mouth_output, head_output], dim=-1)
         mh_output = self.arkit_to_mh(arkit_output)
         
         return mh_output

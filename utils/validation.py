@@ -200,7 +200,7 @@ def _run_validation_single_gpu(model, val_batch, device, use_amp, criterion):
             
             mouth_output = val_trg[:, :, 69:211]
             head_output= val_trg[:, :, 269: 272]
-            val_trg = torch.concat(mouth_output, head_output, dim=-1)
+            val_trg = torch.concat([mouth_output, head_output], dim=-1)
             val_loss = criterion(val_output, val_trg)
     model.train()  # Switch back to training mode
     return val_loss

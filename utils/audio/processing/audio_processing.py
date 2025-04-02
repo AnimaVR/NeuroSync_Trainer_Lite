@@ -11,15 +11,44 @@ def ensure_2d(final_decoded_outputs):
         final_decoded_outputs = final_decoded_outputs.reshape(-1, final_decoded_outputs.shape[-1])
     return final_decoded_outputs
 
-def pad_audio_chunk(audio_chunk, frame_length, num_features):
+def pad_audio_chunk(audio_chunk, frame_length, num_features, pad_mode='replicate'):
+    """
+    Pads the audio_chunk to ensure it has a number of frames equal to frame_length.
+    
+    Parameters:
+        audio_chunk (np.array): Input audio data with shape (num_frames, num_features).
+        frame_length (int): Desired number of frames.
+        num_features (int): Number of features per frame.
+        pad_mode (str): Type of padding to use. Options are:
+                        - 'reflect': Pads using reflection.
+                        - 'replicate': Pads by replicating the last frame.
+    
+    Returns:
+        np.array: Padded audio_chunk with shape (frame_length, num_features).
+    """
     if audio_chunk.shape[0] < frame_length:
         pad_length = frame_length - audio_chunk.shape[0]
-        padding = np.pad(
-            audio_chunk,
-            pad_width=((0, pad_length), (0, 0)),
-            mode='reflect'
-        )
-        audio_chunk = np.vstack((audio_chunk, padding[-pad_length:, :num_features]))
+        
+        if pad_mode == 'reflect':
+            # --- Original reflect padding method ---
+            padding = np.pad(
+                audio_chunk,
+                pad_width=((0, pad_length), (0, 0)),
+                mode='reflect'
+            )
+            # Using the last pad_length frames from the reflected padding
+            audio_chunk = np.vstack((audio_chunk, padding[-pad_length:, :num_features]))
+        
+        elif pad_mode == 'replicate':
+            # --- New replicate padding method ---
+            # Replicate the last frame to fill the remaining frames
+            last_frame = audio_chunk[-1:]  # Select the last frame (shape: (1, num_features))
+            replication = np.tile(last_frame, (pad_length, 1))  # Replicate it pad_length times
+            audio_chunk = np.vstack((audio_chunk, replication))
+        
+        else:
+            raise ValueError(f"Unsupported pad_mode: {pad_mode}. Choose 'reflect' or 'replicate'.")
+    
     return audio_chunk
 
 def decode_audio_chunk(audio_chunk, model, device):

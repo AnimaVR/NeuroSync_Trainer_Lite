@@ -10,17 +10,55 @@ import torch.nn as nn
 from utils.model import Seq2Seq, Encoder, Decoder, Loss
 
 def prepare_training_components(config, model):
-    criterion = Loss(delta=config['delta'], w1=config['w1'], w2=config['w2'])
-    optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], weight_decay=config['weight_decay'])
-    
+    criterion = Loss()
+
+    no_decay = [
+        "bias",
+        "layer_norm.weight", "layer_norm.bias",  
+        ".norm1.weight", ".norm1.bias",         
+        ".norm2.weight", ".norm2.bias",
+        ".norm3.weight", ".norm3.bias",          
+        ".rel_bias",  
+    ]
+
+    decay_params, no_decay_params = [], []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        if any(nd in name for nd in no_decay):
+            no_decay_params.append(param)
+        else:
+            decay_params.append(param)
+
+    # (optional) debug print
+    if config.get("debug_no_decay", False):
+        for name, param in model.named_parameters():
+            if not param.requires_grad: continue
+            bucket = "no_decay" if any(nd in name for nd in no_decay) else " decay "
+            print(f"{name:50s} → {bucket}")
+
+    optimizer_grouped_parameters = [
+        {"params": decay_params,    "weight_decay": config["weight_decay"]},
+        {"params": no_decay_params, "weight_decay": 0.0},
+    ]
+
+    optimizer = optim.AdamW(
+        optimizer_grouped_parameters,
+        lr=config["learning_rate"],
+    )
+
     def lr_lambda(epoch):
-        if epoch < config['warmup_epochs']:
-            return float(epoch) / float(max(1, config['warmup_epochs']))
-        return max(0.0, float(config['n_epochs'] - epoch) / float(max(1, config['n_epochs'] - config['warmup_epochs'])))
-    
+        if epoch < config["warmup_epochs"]:
+            return float(epoch) / float(max(1, config["warmup_epochs"]))
+        return max(
+            0.0,
+            float(config["n_epochs"] - epoch)
+            / float(max(1, config["n_epochs"] - config["warmup_epochs"]))
+        )
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-       
+
     return criterion, optimizer, scheduler
+
 
 def build_model(config, device):
     encoder = Encoder(config['input_dim'], config['hidden_dim'], config['n_layers'], config['num_heads'], config['dropout'])

@@ -17,7 +17,7 @@ def prepare_training_components(config, model):
         "layer_norm.weight", "layer_norm.bias",  
         ".norm1.weight", ".norm1.bias",         
         ".norm2.weight", ".norm2.bias",
-        ".norm3.weight", ".norm3.bias",          
+        ".norm3.weight", ".norm3.bias", "fc_output",          
     ]
 
     decay_params, no_decay_params = [], []

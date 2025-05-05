@@ -90,13 +90,13 @@ def _backward_and_step_single_gpu(loss, model, optimizer, clip, use_amp, grad_sc
     if use_amp:
         grad_scaler.scale(loss).backward()
         grad_scaler.unscale_(optimizer)
-        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
+        total_norm = calculate_gradient_norm(model)  
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         grad_scaler.step(optimizer)
         grad_scaler.update()
     else:
         loss.backward()
-        total_norm = calculate_gradient_norm(model)  # <-- Assumes calculate_gradient_norm is defined elsewhere
+        total_norm = calculate_gradient_norm(model)  
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
     return total_norm
@@ -140,35 +140,26 @@ def _backward_and_step_multi_gpu(
         The pre‑clipping gradient norm of the primary model.
     """
     n = len(models)
-
-    # --------------------------- backward pass ---------------------------
     if use_amp:
         for loss in losses:
             grad_scaler.scale(loss).backward()
     else:
         for loss in losses:
             loss.backward()
-
-    # --------------------- sync to make sure grads exist -----------------
     for device in devices:
         torch.cuda.synchronize(device)
 
-    # ---------------- gradient averaging (still *scaled*!) ---------------
     for param_tuple in zip(*[list(m.parameters()) for m in models]):
         if all(p.grad is not None for p in param_tuple):
-            # move replica grads onto device‑0 *without* modifying them
             grads = [p.grad.data.to(devices[0]) for p in param_tuple]
             avg_grad = torch.mean(torch.stack(grads, dim=0), dim=0)
-            param_tuple[0].grad.data.copy_(avg_grad)          # <<< FIX
-    # NOTE: replica grads are left as‑is; they are not stepped.
-
-    # --------------- unscale, overflow‑check, clip, step -----------------
+            param_tuple[0].grad.data.copy_(avg_grad)       
     if use_amp:
-        grad_scaler.unscale_(optimizer)                       # <<< FIX
+        grad_scaler.unscale_(optimizer)                    
         pre_clip_norm = calculate_gradient_norm(models[0])
         torch.nn.utils.clip_grad_norm_(models[0].parameters(), clip)
 
-        grad_scaler.step(optimizer)                          # may be skipped
+        grad_scaler.step(optimizer)      
         grad_scaler.update()
     else:
         pre_clip_norm = calculate_gradient_norm(models[0])
